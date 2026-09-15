@@ -367,6 +367,7 @@ html[dir="ltr"] .whatsapp-float {
         noLessons: "لا يوجد دروس فيديو متاحة حاليًا",
         lessonOrder: "حصة",
         weekLabel: "الأسبوع",
+        unassignedWeek: "غير مرتبط بأسبوع",
         viewsCount: "مشاهدة",
         remainingTime: "متبقي",
         startsOnOpen: "يبدأ الحساب عند أول فتح",
@@ -397,6 +398,7 @@ html[dir="ltr"] .whatsapp-float {
         noLessons: "No video lessons currently available",
         lessonOrder: "Lesson",
         weekLabel: "Week",
+        unassignedWeek: "Unassigned week",
         viewsCount: "views",
         remainingTime: "Remaining",
         startsOnOpen: "Timer starts on first open",
@@ -416,13 +418,6 @@ html[dir="ltr"] .whatsapp-float {
       }
     };
 
-    const lessonWeekMap = {
-      1: [1, 2],
-      2: [3, 5],
-      3: [4, 6],
-      4: [7, 8],
-    };
-
     const lessonExtrasByNumber = {
       1: { homeworkVideoUrl: '', examUrl: '' },
       2: { homeworkVideoUrl: '', examUrl: '' },
@@ -440,18 +435,9 @@ html[dir="ltr"] .whatsapp-float {
     }
 
     function getWeekFromLesson(lesson) {
-      if (lesson && (lesson.weekNumber !== undefined && lesson.weekNumber !== null && lesson.weekNumber !== '')) {
-        return Number(lesson.weekNumber);
-      }
-      if (lesson && (lesson.week_number !== undefined && lesson.week_number !== null && lesson.week_number !== '')) {
-        return Number(lesson.week_number);
-      }
-      const lessonNumber = Number(lesson && lesson.lessonNumber);
-      const sessionToWeek = new Map();
-      Object.entries(lessonWeekMap).forEach(([weekNumber, numbers]) => {
-        (numbers || []).forEach((num) => sessionToWeek.set(Number(num), Number(weekNumber)));
-      });
-      return sessionToWeek.get(lessonNumber) || Math.max(1, Math.ceil(lessonNumber / 2));
+      const rawWeek = lesson?.weekNumber ?? lesson?.week_number;
+      const weekNumber = Number(rawWeek);
+      return Number.isInteger(weekNumber) && weekNumber > 0 ? weekNumber : null;
     }
 
     function buildLessonWeeks(lessons, lang) {
@@ -459,10 +445,15 @@ html[dir="ltr"] .whatsapp-float {
 
       lessons.forEach((lesson) => {
         const weekNumber = getWeekFromLesson(lesson);
-        const key = `week-${weekNumber}`;
+        const key = weekNumber === null ? 'unassigned' : `week-${weekNumber}`;
 
         if (!weekToLessons.has(key)) {
-          weekToLessons.set(key, { number: weekNumber, lessons: [] });
+          weekToLessons.set(key, {
+            key,
+            number: weekNumber,
+            label: weekNumber === null ? translations[lang].unassignedWeek : `${translations[lang].weekLabel} ${weekNumber}`,
+            lessons: [],
+          });
         }
 
         weekToLessons.get(key).lessons.push(lesson);
@@ -470,11 +461,16 @@ html[dir="ltr"] .whatsapp-float {
 
       return Array.from(weekToLessons.values())
         .map((week) => ({
+          key: week.key,
           number: week.number,
-          label: `${translations[lang].weekLabel} ${week.number}`,
+          label: week.label,
           lessons: week.lessons.sort((a, b) => Number(a.lessonNumber) - Number(b.lessonNumber)),
         }))
-        .sort((a, b) => a.number - b.number);
+        .sort((a, b) => {
+          if (a.number === null) return 1;
+          if (b.number === null) return -1;
+          return a.number - b.number;
+        });
     }
 
     function formatRemainingTime(totalSeconds, lang) {
@@ -664,7 +660,7 @@ html[dir="ltr"] .whatsapp-float {
       const currentWeek = new URLSearchParams(window.location.search).get('week');
 
       if (currentWeek) {
-        const selectedWeek = weeks.find(week => String(week.number) === String(currentWeek));
+        const selectedWeek = weeks.find(week => week.key === `week-${currentWeek}` || week.key === currentWeek);
         if (!selectedWeek) {
           window.history.replaceState({}, '', 'lessons.html');
           loadLessons();
@@ -781,7 +777,7 @@ html[dir="ltr"] .whatsapp-float {
       weeks.forEach((week, weekIndex) => {
         container.innerHTML += `
           <div class="col-md-3 col-sm-6 col-12 fade-in-up" style="animation-delay: ${weekIndex * 0.1}s">
-            <div class="card lesson-card h-100" onclick="window.location.href='lessons.html?week=${week.number}'" style="border: 1px solid var(--sf-border); background: linear-gradient(135deg, rgba(79,70,229,0.06), rgba(16,179,163,0.05)); min-height: 190px; display: flex; align-items: center; justify-content: center; text-align: center;">
+            <div class="card lesson-card h-100" onclick="window.location.href='lessons.html?week=${week.key}'" style="border: 1px solid var(--sf-border); background: linear-gradient(135deg, rgba(79,70,229,0.06), rgba(16,179,163,0.05)); min-height: 190px; display: flex; align-items: center; justify-content: center; text-align: center;">
               <div class="card-body p-4 w-100">
                 <div class="d-flex flex-column align-items-center justify-content-center h-100">
                   <span class="badge mb-3" style="background: rgba(79, 70, 229, 0.1); color: var(--sf-primary);">${translations[currentLang].weekLabel}</span>

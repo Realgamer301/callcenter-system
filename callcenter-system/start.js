@@ -1,6 +1,6 @@
 /*
  * One-click launcher for the Call Center system.
- *
+ *this test
  * What this does:
  *  1. Installs backend/frontend dependencies the first time (skips if already done).
  *  2. Starts the backend API and the frontend dev server.
